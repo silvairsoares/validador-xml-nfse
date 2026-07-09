@@ -4,7 +4,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultContainer = document.getElementById('result');
     const resultText = document.getElementById('result-text');
 
-    // Mapeia os modelos aos seus schemas principais
     const schemaMap = {
         'nacional': 'schemas/nacional/DPS_v1.01.xsd',
         'abrasf': 'schemas/abrasf2.04/schema_nfse_v2-04 - Corrigido.xsd'
@@ -20,40 +19,48 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Desabilita o botão e mostra o status
         validateBtn.disabled = true;
-        displayResult('Validando, por favor aguarde...', 'loading');
+        displayResult('Inicializando engine de validação...', 'loading');
 
         try {
-            // 1. Buscamos o conteúdo de texto do arquivo XSD selecionado
+            // 1. Carrega o texto do XSD antes de abrir o Worker
             const schemaResponse = await fetch(schemaUrl);
             if (!schemaResponse.ok) {
                 throw new Error(`Não foi possível carregar o arquivo XSD em: ${schemaUrl}`);
             }
             const xsdString = await schemaResponse.text();
 
-            // 2. Criamos o Web Worker apontando diretamente para o arquivo xmlvalidate.js
+            // 2. Instancia o Web Worker
             const worker = new Worker('xmlvalidate.js');
 
-            // 3. Monitoramos as respostas enviadas pelo Worker
+            // 3. Orquestração de mensagens baseada no estado da Libxml2
             worker.onmessage = (e) => {
                 const data = e.data;
+                console.log("Mensagem recebida do Worker:", data); // Ajuda a rastrear no F12
 
-                // Se o XSD foi carregado com sucesso na memória do WebAssembly
-                if (data.file === "schema.xsd" && data.loaded) {
-                    // Enviamos o XML para ser validado contra o schema recém-carregado
+                // Padrão Emscripten/xmlvalidate: Aguarda a engine sinalizar que está pronta
+                if (data.status === "ready" || data.ready) {
+                    displayResult('Processando Schemas XSD...', 'loading');
+                    worker.postMessage({ content: xsdString, name: "schema.xsd" });
+                    return;
+                }
+
+                // Resposta do carregamento do Schema
+                if ((data.file === "schema.xsd" && data.loaded) || data.status === "schema_loaded") {
+                    displayResult('Validando estrutura do XML...', 'loading');
                     worker.postMessage({ content: xmlString, name: "documento.xml" });
+                    return;
                 } 
-                // Se recebemos a resposta final da validação do XML
-                else if (data.file === "documento.xml") {
-                    // Finaliza o worker para liberar memória
+
+                // Resposta final da validação do XML
+                if (data.file === "documento.xml" || data.status === "validated" || data.errors !== undefined) {
                     worker.terminate();
 
-                    // Se vier uma lista de erros e ela contiver itens
-                    if (data.errors && data.errors.length > 0) {
+                    const erros = data.errors || [];
+                    if (erros.length > 0) {
                         let errorMessages = '❌ Erros de validação encontrados:\n\n';
-                        data.errors.forEach(error => {
-                            const cleanMessage = error.message?.trim() || 'Erro de estrutura.';
+                        erros.forEach(error => {
+                            const cleanMessage = error.message?.trim() || 'Erro de estrutura (XSD).';
                             errorMessages += `- Linha ${error.line || '?'}, Coluna ${error.column || '?'}: ${cleanMessage}\n`;
                         });
                         displayResult(errorMessages, 'error');
@@ -64,19 +71,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
 
-            // Trata falhas internas do Worker
             worker.onerror = (err) => {
+                console.error("Erro interno no Worker:", err);
                 worker.terminate();
-                throw new Error(`Falha interna no Web Worker: ${err.message}`);
+                displayResult(`❌ Erro interno no validador: ${err.message}`, 'error');
+                validateBtn.disabled = false;
             };
 
-            // 4. Iniciamos o fluxo enviando primeiro o conteúdo do Schema (XSD)
-            // A extensão ".xsd" diz à biblioteca para compilar o schema em memória.
-            worker.postMessage({ content: xsdString, name: "schema.xsd" });
-
         } catch (e) {
-            console.error('Erro crítico durante a validação:', e);
-            displayResult(`❌ Ocorreu um erro crítico durante a validação:\n\n${e.message}\n\nVerifique o console (F12) para mais detalhes.`, 'error');
+            console.error('Erro crítico:', e);
+            displayResult(`❌ Ocorreu um erro crítico:\n\n${e.message}`, 'error');
             validateBtn.disabled = false;
         }
     });
