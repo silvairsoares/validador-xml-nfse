@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validador de XML de NFS-e</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Validador de XML de NFS-e</h1>
+        <p>Selecione o padrão da NFS-e e cole o conteúdo do XML para validar.</p>
+
+        <div class="form-group">
+            <label>Padrão da NFS-e:</label>
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="nfse_standard" value="nacional" checked>
+                    NFS-e Nacional
+                </label>
+                <label>
+                    <input type="radio" name="nfse_standard" value="abrasf">
+                    ABRASF 2.04
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="xmlContent">Conteúdo do XML:</label>
+            <textarea id="xmlContent" rows="15" placeholder="Cole o conteúdo do seu arquivo XML aqui..."></textarea>
+        </div>
+
+        <button id="validateBtn">Validar XML</button>
+
+        <div id="result" class="result-container">
+            <h2>Resultado da Validação</h2>
+            <pre id="result-text">Aguardando validação...</pre>
+        </div>
+    </div>
+
+    <!-- Carrega o script principal como um módulo para permitir importações -->
+	<script src="xmlvalidate.js"></script>
+	<script src="main.js"></script>
+</body>
+</html>
